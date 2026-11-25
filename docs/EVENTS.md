@@ -27,11 +27,20 @@ of the state tables keeps a transaction hash.
 
 ## Escrow — `contracts/escrow`
 
-| Rust type | topic0 (`Symbol`) | topic1 (`#[topic]`) | data fields |
-|-----------|-------------------|---------------------|-------------|
-| `Created` | `created` | `client: Address` | `escrow_id: u64`, `freelancer: Address`, `total_amount: i128` |
-| `Funded` | `funded` | `client: Address` | `escrow_id: u64`, `amount: i128`, `freelancer: Address` |
-| `MilestoneReleased` | `milestone_released` | `escrow_id: u64` | `index: u32`, `amount: i128` |
+| Rust type | topic0 (`Symbol`) | topic1 (`#[topic]`) | data fields | Trigger / state transition |
+|-----------|-------------------|---------------------|-------------|----------------------------|
+| `Created` | `created` | `client: Address` | `escrow_id: u64`, `freelancer: Address`, `total_amount: i128` | `create` — initializes a new escrow in `Created` state. |
+| `Funded` | `funded` | `client: Address` | `escrow_id: u64`, `amount: i128`, `freelancer: Address` | `fund` — client transfers `total_amount` into escrow; `Created` → `Active`. |
+| `MilestonesUpdated` | `milestones_updated` | `escrow_id: u64` | `count: u32`, `total_amount: i128` | `update_milestones` — client edits milestones while escrow is still `Created` (unfunded). |
+| `Cancelled` | `cancelled` | `escrow_id: u64` | `client: Address` | `cancel` — client closes an unfunded `Created` escrow; `Created` → `Cancelled`. |
+| `MilestoneReleased` | `milestone_released` | `escrow_id: u64` | `index: u32`, `amount: i128` | `release_milestone` / `release_partial` — pays `amount` to freelancer while `Active`; when all milestones are paid out, `Active` → `Completed`. |
+| `DisputeOpened` | `dispute_opened` | `escrow_id: u64` | `initiator: Address` | `open_dispute` — client or freelancer freezes an `Active` escrow; `Active` → `Disputed`. |
+| `Resolved` | `resolved` | `escrow_id: u64` | `client_share: i128`, `freelancer_share: i128` | `resolve` (dispute contract only) — distributes funds between client and freelancer; `Disputed` → `Resolved`. |
+| `Refunded` | `refunded` | `escrow_id: u64` | `client: Address`, `amount: i128` | `refund_expired` (`Active` past expiry) or `reclaim_disputed` (`Disputed` past timelock) — returns unreleased balance to client; `Active`/`Disputed` → `Refunded`. |
+| `DisputeContractProposed` | `dispute_contract_proposed` | `admin: Address` | `new_contract: Address`, `effective_at: u64` | `set_dispute_contract` — admin schedules a dispute-contract rotation with a timelock. |
+| `DisputeContractCancelled` | `dispute_contract_cancelled` | `admin: Address` | `cancelled_contract: Address` | `cancel_dispute_contract` — admin cancels a pending dispute-contract proposal. |
+| `DisputeContractUpdated` | `dispute_contract_updated` | `admin: Address` | `old_contract: Address`, `new_contract: Address` | `apply_dispute_contract` — admin applies a proposed dispute-contract rotation after `effective_at`. |
+| `CodeUpdated` | `code_updated` | `admin: Address` | `new_wasm_hash: BytesN<32>` | `upgrade` — admin upgrades the escrow contract WASM bytecode in place. |
 
 > `MilestoneReleased` is emitted by **both** `release_milestone` and
 > `release_partial`, and its `amount` is the sum paid by *that* call — not the
@@ -42,31 +51,22 @@ of the state tables keeps a transaction hash.
 > `escrow.resolve` emits only `resolved`, and it sets every milestone's on-chain
 > `released_amount` to its full `amount`; the indexer writes the same full amount
 > to each milestone when it handles that event.
-| `DisputeOpened` | `dispute_opened` | `escrow_id: u64` | `initiator: Address` |
-| `Resolved` | `resolved` | `escrow_id: u64` | `client_share: i128`, `freelancer_share: i128` |
-| `Refunded` | `refunded` | `escrow_id: u64` | `client: Address`, `amount: i128` |
-| `Cancelled` | `cancelled` | `escrow_id: u64` | `client: Address` |
-| `MilestonesUpdated` | `milestones_updated` | `escrow_id: u64` | `count: u32`, `total_amount: i128` |
-| `DisputeContractProposed` | `dispute_contract_proposed` | `admin: Address` | `new_contract: Address`, `effective_at: u64` |
-| `DisputeProposalCancelled` | `dispute_proposal_cancelled` | `admin: Address` | `cancelled_contract: Address` |
-| `DisputeContractUpdated` | `dispute_contract_updated` | `admin: Address` | `old_contract: Address`, `new_contract: Address` |
-| `CodeUpdated` | `code_updated` | `admin: Address` | `new_wasm_hash: BytesN<32>` |
-
+>
 > Dispute-contract rotation is a two-step, timelocked flow: `set_dispute_contract`
 > emits `dispute_contract_proposed`; after `effective_at`, `apply_dispute_contract`
 > emits `dispute_contract_updated` and only then does `resolve` authority change.
 
 ## Dispute — `contracts/dispute`
 
-| Rust type | topic0 (`Symbol`) | topic1 (`#[topic]`) | data fields |
-|-----------|-------------------|---------------------|-------------|
-| `Raised` | `raised` | `escrow_id: u64` | `dispute_id: u64`, `raised_by: Address` |
-| `Approved` | `approved` | `dispute_id: u64` | `arbitrator: Address` |
-| `DisputeResolved` | `dispute_resolved` | `escrow_id: u64` | `dispute_id: u64`, `client_share: i128`, `freelancer_share: i128` |
-| `ThresholdUpdated` | `threshold_updated` | `admin: Address` | `old_threshold: u32`, `new_threshold: u32` |
-| `ArbitratorAdded` | `arbitrator_added` | `admin: Address` | `arbitrator: Address`, `panel_size: u32` |
-| `ArbitratorRemoved` | `arbitrator_removed` | `admin: Address` | `arbitrator: Address`, `panel_size: u32` |
-| `CodeUpdated` | `code_updated` | `admin: Address` | `new_wasm_hash: BytesN<32>` |
+| Rust type | topic0 (`Symbol`) | topic1 (`#[topic]`) | data fields | Trigger / state transition |
+|-----------|-------------------|---------------------|-------------|----------------------------|
+| `Raised` | `raised` | `escrow_id: u64` | `dispute_id: u64`, `raised_by: Address` | `raise` — party raises a dispute against a `Disputed` escrow; creates dispute in `Open` state. |
+| `Approved` | `approved` | `dispute_id: u64` | `arbitrator: Address` | `arbitrate` — panel arbitrator records an approval vote for a proposed split (`Open` remains `Open` until threshold is met). |
+| `DisputeResolved` | `dispute_resolved` | `escrow_id: u64` | `dispute_id: u64`, `client_share: i128`, `freelancer_share: i128` | `arbitrate` — final threshold approval met and `escrow.resolve` succeeds; `Open` → `Resolved`. |
+| `ThresholdUpdated` | `threshold_updated` | `admin: Address` | `old_threshold: u32`, `new_threshold: u32` | `set_threshold` — admin updates the panel approval threshold. |
+| `ArbitratorAdded` | `arbitrator_added` | `admin: Address` | `arbitrator: Address`, `panel_size: u32` | `add_arbitrator` — admin adds an arbitrator seat to the panel. |
+| `ArbitratorRemoved` | `arbitrator_removed` | `admin: Address` | `arbitrator: Address`, `panel_size: u32` | `remove_arbitrator` — admin removes an arbitrator seat and bumps `panel_version`. |
+| `CodeUpdated` | `code_updated` | `admin: Address` | `new_wasm_hash: BytesN<32>` | `upgrade` — admin upgrades the dispute contract WASM bytecode in place. |
 
 > `ThresholdUpdated` is emitted by `set_threshold` only, after the new value is
 > validated and stored. `set_panel` also writes a threshold but emits no event of
@@ -77,9 +77,9 @@ of the state tables keeps a transaction hash.
 
 ## Reputation — `contracts/reputation`
 
-| Rust type | topic0 (`Symbol`) | topic1 (`#[topic]`) | data fields |
-|-----------|-------------------|---------------------|-------------|
-| `Rated` | `rated` | `escrow_id: u64` | `rater: Address`, `ratee: Address`, `score: u32`, `count: u64`, `total_score: u64` |
+| Rust type | topic0 (`Symbol`) | topic1 (`#[topic]`) | data fields | Trigger / state transition |
+|-----------|-------------------|---------------------|-------------|----------------------------|
+| `Rated` | `rated` | `escrow_id: u64` | `rater: Address`, `ratee: Address`, `score: u32`, `count: u64`, `total_score: u64` | `rate` — client or freelancer rates counterparty on a `Completed` escrow; records one-time `(escrow_id, rater)` rating and updates ratee's weighted aggregate. |
 
 `count` and `total_score` are the ratee's **weighted** aggregate after this rating
 (see [`REPUTATION.md`](./REPUTATION.md)); `total_score` is `sum(score * weight)`
