@@ -11,10 +11,11 @@
  */
 
 import { useState } from "react";
-import { explorerContractUrl, explorerTxUrl } from "../lib/stellar";
+import { explorerContractUrl } from "../lib/stellar";
 import { useToasts } from "../hooks/toast-context";
 import { copyText } from "../lib/clipboard";
 import MobileSignModal from "./MobileSignModal";
+import { TransactionLink } from "./TransactionLink";
 
 export default function Toaster() {
   const { toasts, dismiss } = useToasts();
@@ -68,9 +69,7 @@ export default function Toaster() {
             {toast.status === "confirmed" && toast.hash && (
               <>
                 {" "}
-                <a href={explorerTxUrl(toast.hash)} target="_blank" rel="noreferrer" title={toast.hash}>
-                  View on stellar.expert
-                </a>
+                <TransactionLink hash={toast.hash} showExplorerLabel />
                 <button type="button" onClick={() => void copyHash(toast.hash!)}>
                   Copy transaction hash
                 </button>

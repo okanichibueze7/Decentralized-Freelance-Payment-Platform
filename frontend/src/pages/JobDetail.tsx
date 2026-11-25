@@ -41,9 +41,10 @@ import JobDetailSkeleton from "../components/JobDetailSkeleton";
 import Conversation from "../components/Conversation";
 import DisputeEvidence from "../components/DisputeEvidence";
 import ConfirmModal from "../components/ConfirmModal";
+import { TransactionLink } from "../components/TransactionLink";
 import { useEscrow, type EscrowView, type DisputeContractData } from "../hooks/useEscrow";
 import { useWallet } from "../hooks/wallet-context";
-import { explorerContractUrl, explorerTxUrl } from "../lib/stellar";
+import { explorerContractUrl } from "../lib/stellar";
 import { shortAddress } from "../lib/address";
 import { assetForContractId, formatAmount, fromBaseUnits, toBaseUnits } from "../lib/assets";
 import {
@@ -1184,14 +1185,7 @@ export default function JobDetail() {
               <span aria-hidden="true">✓</span>
               <span>
                 Last transaction:{" "}
-                <a
-                  href={explorerTxUrl(lastHash)}
-                  target="_blank"
-                  rel="noreferrer"
-                  title={lastHash}
-                >
-                  <code>{lastHash.slice(0, 12)}…</code>
-                </a>
+                <TransactionLink hash={lastHash} />
                 {escrow && (
                   <>
                     {" "}·{" "}

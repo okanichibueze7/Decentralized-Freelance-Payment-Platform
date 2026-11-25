@@ -90,6 +90,7 @@ describe("Toaster", () => {
 
     const link = screen.getByRole("link", { name: /stellar\.expert/i }) as HTMLAnchorElement;
     expect(link.href).toBe("https://stellar.expert/explorer/testnet/tx/abc123");
+    expect(link.textContent).toContain("abc123");
   });
 
   it("copies the full confirmed transaction hash", async () => {

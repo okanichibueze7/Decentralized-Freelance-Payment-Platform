@@ -31,7 +31,8 @@ import { freelancerFromInvite } from "../lib/invite";
 import { estimateFiat } from "../lib/prices";
 import { useFiatRates } from "../hooks/useFiatRates";
 import { MAX_JOB_TAGS, tagsByCategory } from "../lib/tags";
-import { CONTRACT_ADDRESSES, explorerTxUrl } from "../lib/stellar";
+import { CONTRACT_ADDRESSES } from "../lib/stellar";
+import { TransactionLink } from "../components/TransactionLink";
 import {
   deleteTemplate,
   listTemplates,
@@ -718,14 +719,7 @@ export default function PostJob() {
       {created && (
         <p role="status" aria-live="polite" className="alert">
           Escrow #{created.id.toString()} created and funded. Transaction{" "}
-          <a
-            href={explorerTxUrl(created.hash)}
-            target="_blank"
-            rel="noreferrer"
-            title={created.hash}
-          >
-            <code>{created.hash.slice(0, 12)}…</code>
-          </a>{" "}
+          <TransactionLink hash={created.hash} />{" "}
           <Link to={`/jobs/${created.id}`}>Open job →</Link>
         </p>
       )}
@@ -747,14 +741,7 @@ export default function PostJob() {
               </button>{" "}
               <span className="muted">
                 (escrow #{pendingEscrow.escrowId}, tx{" "}
-                <a
-                  href={explorerTxUrl(pendingEscrow.hash)}
-                  target="_blank"
-                  rel="noreferrer"
-                  title={pendingEscrow.hash}
-                >
-                  <code>{pendingEscrow.hash.slice(0, 12)}…</code>
-                </a>
+                <TransactionLink hash={pendingEscrow.hash} />
                 )
               </span>
             </>
@@ -768,14 +755,7 @@ export default function PostJob() {
         <div role="alert" aria-live="polite" className="alert alert-error">
           <strong>Unlinked escrow detected.</strong> A previous funding transaction
           (escrow #{pendingEscrow.escrowId},{" "}
-          <a
-            href={explorerTxUrl(pendingEscrow.hash)}
-            target="_blank"
-            rel="noreferrer"
-            title={pendingEscrow.hash}
-          >
-            <code>{pendingEscrow.hash.slice(0, 12)}…</code>
-          </a>
+          <TransactionLink hash={pendingEscrow.hash} />
           ) was not linked to a job record. Connect your wallet and click{" "}
           <strong>Retry Linking</strong> to recover.
           {publicKey && (
